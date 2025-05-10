@@ -1,1 +1,172 @@
+---
+title: "Patient Survival Prediction"
+# date: "today"
+#date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  #pdf_document:
+    #toc: yes
+    #toc_depth: '3'
+---
 
+```{r init, include=F}
+library(ezids)
+```
+
+```{r setup, include=FALSE}
+# some of common options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+# knitr::opts_chunk$set(warning = F, results = "hide", message = F)
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+# ‘scipen’: integer. 
+```
+
+
+```{r}
+data<-read.csv("C:\\Users\\HP\\Desktop\\Class files\\dataset.csv")
+str(data)
+
+```
+```{r}
+# Some of the major EDA for understanding the active relation between Deaths and various body conditions.
+library(ggplot2)
+#Box plot of Heart rate Apache vs Hospital Death
+ggplot(data, aes(x = hospital_death, y = heart_rate_apache)) +
+  geom_boxplot() +
+  labs(
+    title = "Box plot of hospital death vs heart rate apache",
+    x = "Hospital deaths",
+    y = "Heart rate apache"
+  )
+```
+```{r}
+#Histogram of BMI
+ggplot(data, aes(x = bmi)) +
+    geom_histogram(binwidth = 5, fill = "orange", color = "black", alpha = 0.7) + ggtitle("Histogram of BMI") + theme(plot.title = element_text(hjust = 0.5)) + labs(title = "Distribution of BMI reading",x = "BMI count",y = "Frequency")
+
+```
+
+```{r}
+#Histogram of Heart rate apache
+ggplot(data, aes(x = bmi), na.rm=TRUE) + geom_histogram(binwidth = 5, fill = "yellow", color = "black", alpha = 0.7) + ggtitle("Histogram of Heart Rate Apache") + theme(plot.title = element_text(hjust = 0.5)) + labs(title = "Distribution of heart rate apache",x = "Heart rate apache count",y = "Frequency")
+```
+```{r}
+#Bar graph for Hospital deaths vs Hepatic failures
+hospital_deaths_yes <- subset(data,hospital_death == 1)
+hospital_deaths_no <- subset(data,hospital_death == 0)
+ggplot(data = hospital_deaths_yes, aes(x = `diabetes_mellitus`, fill = `diabetes_mellitus`)) + geom_bar(position = "stack",col="black", fill="pink") + labs(title = "Deaths by Hepatic failures",x="Hepatic failures",y = "Count of Hospital Deaths") + theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+#Bar graph for Ethnicity vs hospital deaths
+hospital_deaths_yes <- subset(data,hospital_death == 1)
+hospital_deaths_no <- subset(data,hospital_death == 0)
+ggplot(data = hospital_deaths_yes, aes(x = `ethnicity`, fill = `ethnicity`)) + geom_bar(position = "stack",col="orange", fill="red") + labs(title = "Deaths by Ethnicity",x = "Etnicity",y = "Count of Hospital Deaths") + theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+hospital_deaths_yes <- subset(data,hospital_death == 1)
+hospital_deaths_no <- subset(data,hospital_death == 0)
+ggplot(data = hospital_deaths_yes, aes(x = `gender`, fill = `gender`)) + geom_bar(position = "stack",col="orange", fill="blue") + labs(title = "Deaths by Gender",x = "Gender",y = "Count of Hospital Deaths") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+# Question 1: Among different age groups (children, adults, and senior citizens), which demographic exhibits the highest mortality rate?
+
+```{r}
+data$AgeGroup <- ifelse(data$age < 18, "Children", ifelse(data$age < 65, "Adults", "Senior Citizens"))
+
+# Calculate the mortality rate for each age group
+mortality_table <- table(data$AgeGroup, data$hospital_death)
+
+# Calculate the mortality rates
+mortality_rate <- (mortality_table[, "1"] / rowSums(mortality_table)) * 100
+
+# Create a dataframe for the results
+mortality_results <- data.frame(
+  AgeGroup = names(mortality_rate),
+  MortalityRate = mortality_rate
+)
+
+# Find the demographic with the highest mortality rate
+highest_mortality_group <- mortality_results[which.max(mortality_results$MortalityRate), ]
+
+barplot(mortality_results$MortalityRate, names.arg = mortality_results$AgeGroup, col = "skyblue",
+        xlab = "Age Group", ylab = "Mortality Rate (%)", main = "Mortality Rate by Age Group")
+
+# Add text to indicate the group with the highest mortality rate
+text(x = which.max(mortality_results$MortalityRate), y = highest_mortality_group$MortalityRate + 1,
+     label = paste("Highest:", round(highest_mortality_group$MortalityRate, 2), "%"), col = "red")
+
+cat("The demographic with the highest mortality rate is", highest_mortality_group$AgeGroup,
+    "with a mortality rate of", highest_mortality_group$MortalityRate, "%.")
+
+```
+
+# Question 2: Can the presence of medical conditions like diabetes, hepatic failure, or other medical conditions impact an individual's likelihood of mortality?
+
+```{r}
+data$diabetes_mellitus <- as.factor(data$diabetes_mellitus)
+data$hepatic_failure <- as.factor(data$hepatic_failure)
+
+model <- glm(hospital_death ~ diabetes_mellitus + hepatic_failure, data = data, family = "binomial")
+
+summary(model)
+
+# Chi-squared test for diabetes_mellitus
+chisq_test_diabetes <- chisq.test(table(data$diabetes_mellitus, data$hospital_death))
+print(chisq_test_diabetes)
+
+# Chi-squared test for hepatic_failure
+chisq_test_hepatic <- chisq.test(table(data$hepatic_failure, data$hospital_death))
+print(chisq_test_hepatic)
+```
+
+# Question 3: What is the gender distribution of deaths in the hospital, with regard to male and female ratios?
+
+```{r}
+gender_table <- table(data$gender, data$hospital_death)
+
+# Extract the counts of deceased males and females
+deceased_males <- gender_table["M", "1"]
+deceased_females <- gender_table["F", "1"]
+
+# Calculate the male-to-female ratio
+male_to_female_ratio <- deceased_males / deceased_females
+
+
+
+cat("The male-to-female ratio among deceased individuals in the hospital is:", male_to_female_ratio)
+```
+
+# Question 4: Among ethnicities, which one exhibits the highest and lowest mortality rate?
+
+```{r}
+
+library(dplyr)
+
+
+mortality_rates <- data %>%
+  group_by(ethnicity) %>%
+  summarise(
+    total_patients = n(),
+    total_deaths = sum(hospital_death),
+    mortality_rate = (total_deaths / total_patients) * 100  
+  )
+
+
+highest_mortality <- mortality_rates[which.max(mortality_rates$mortality_rate), ]
+lowest_mortality <- mortality_rates[which.min(mortality_rates$mortality_rate), ]
+
+
+cat("Ethnicity with Highest Mortality Rate: ", highest_mortality$ethnicity, "\n")
+cat("Highest Mortality Rate: ", highest_mortality$mortality_rate, "%\n")
+cat("Ethnicity with Lowest Mortality Rate: ", lowest_mortality$ethnicity, "\n")
+cat("Lowest Mortality Rate: ", lowest_mortality$mortality_rate, "%\n")
+
+```
