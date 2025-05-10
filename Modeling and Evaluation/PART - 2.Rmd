@@ -1,1 +1,341 @@
+---
+  title: "Part - II"
+author: "Surya vamsi Patiballa"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+  code_folding: hide
+number_sections: false
+toc: yes
+toc_depth: 3
+toc_float: yes
+pdf_document:
+  toc: yes
+toc_depth: '3'
+---
+  
+```{r init, include=F}
+hospital_data <- read.csv("C:\Users\HP\Desktop\Class files\Data science\Project - 1\dataset.csv")
+head(hospital_data)
 
+```
+
+#How does the presence of diabetes mellitus correlate with age? Is diabetes a risk factor for hospital
+#death in older patients, and does age significantly impact the chance of developing diabetes?
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(stringr)
+
+# Check the structure of the dataset
+str(hospital_data)
+correlation_age_diabetes <- cor(hospital_data$age, hospital_data$diabetes_mellitus)
+cat("Correlation between Age and Diabetes Mellitus:", correlation_age_diabetes, "\n")
+hospital_data <- hospital_data %>%
+  mutate(age_group = ifelse(age >= 65, "Older", "Younger"))
+cross_table <- table(hospital_data$diabetes_mellitus, hospital_data$age_group, hospital_data$hospital_death)
+print(cross_table)
+
+correlation_age_diabetes <- cor(hospital_data$age, hospital_data$diabetes_mellitus)
+cat("Correlation between Age and Diabetes Mellitus:", correlation_age_diabetes, "\n")
+hospital_data <- hospital_data[!is.na(hospital_data$age) & is.numeric(hospital_data$age), ]
+logistic_model <- glm(hospital_death ~ age + diabetes_mellitus, data = hospital_data, family = "binomial")
+
+# Create a sequence of ages for plotting purposes
+age_seq <- seq(min(hospital_data$age), max(hospital_data$age), length.out = 100)
+
+# Create a data frame for predictions
+new_data <- expand.grid(age = age_seq, diabetes_mellitus = c(0, 1))
+
+# Predict probabilities
+new_data$predicted_prob <- predict(logistic_model, newdata = new_data, type = "response")
+
+# Plot logistic regression curve with scatter plot
+library(ggplot2)
+
+ggplot(hospital_data, aes(x = age, y = hospital_death)) +
+  geom_point(aes(color = factor(diabetes_mellitus)), alpha = 0.6) +
+  geom_line(data = new_data, aes(y = predicted_prob), color = "blue", size = 1) +
+  scale_color_discrete(name = "Diabetes Mellitus") +
+  labs(x = "Age", y = "Hospital Death Probability") +
+  ggtitle("Logistic Regression: Probability of Hospital Death by Age and Diabetes Mellitus") +
+  theme_minimal()
+
+# Fit logistic regression model
+logistic_model <- glm(hospital_death ~ age + diabetes_mellitus, data = hospital_data, family = "binomial")
+summary(logistic_model)
+```
+
+#Are there any particular illnesses or risk factors (such as leukemia, cirrhosis, or diabetes mellitus) that
+#are closely linked to hospital deaths?
+  
+```{r}
+
+selected_columns <- hospital_data %>%
+  select(hospital_death, leukemia, cirrhosis, diabetes_mellitus)
+model_leukemia <- glm(hospital_death ~ leukemia, data = selected_columns, family = "binomial")
+model_cirrhosis <- glm(hospital_death ~ cirrhosis, data = selected_columns, family = "binomial")
+model_diabetes <- glm(hospital_death ~ diabetes_mellitus, data = selected_columns, family = "binomial")
+
+summary(model_leukemia)
+summary(model_cirrhosis)
+summary(model_diabetes)
+
+library(ggplot2)
+library(dplyr)
+
+# Select relevant columns for analysis (e.g., leukemia, cirrhosis, diabetes_mellitus, hospital_death)
+selected_data <- hospital_data %>%
+  select(leukemia, cirrhosis, diabetes_mellitus, hospital_death)  # Update column names as needed
+
+# Calculate hospital death rates for each condition
+death_rates <- selected_data %>%
+  group_by(leukemia, cirrhosis, diabetes_mellitus) %>%
+  summarize(death_rate = mean(hospital_death == 1))
+
+# Reshape the data for plotting
+death_rates_long <- death_rates %>%
+  pivot_longer(cols = c(leukemia, cirrhosis, diabetes_mellitus),
+               names_to = "Condition",
+               values_to = "Death_Rate")
+
+# Create a bar plot showing death rates for different conditions
+ggplot(death_rates_long, aes(x = Condition, y = Death_Rate, fill = Condition)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Condition", y = "Hospital Death Rate", title = "Hospital Death Rates by Condition") +
+  theme_minimal()
+```
+#Which underlying medical disorders account for the majority of hospital deaths among patients over the
+#age of 70? Are there any trends in the kinds of illnesses that cause death in this particular age range?
+  ```{r}
+
+library(ggplot2)
+library(dplyr)
+
+# Filter data for patients over the age of 70 who experienced hospital death
+older_patients_death <- hospital_data %>%
+  filter(age > 70, hospital_death == 1)
+
+# Select relevant columns related to medical disorders or conditions (modify as needed)
+selected_columns <- older_patients_death %>%
+  select(diabetes_mellitus, cirrhosis, leukemia, heart_rate_apache,glucose_apache)  # Add other relevant columns
+
+# Calculate the count of each medical condition
+condition_counts <- selected_columns %>%
+  summarise_all(sum) %>%
+  pivot_longer(cols = everything(), names_to = "Condition", values_to = "Count")
+
+# Create a bar plot to visualize medical conditions among deceased patients over 70
+ggplot(condition_counts, aes(x = reorder(Condition, -Count), y = Count, fill = Condition)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Medical Condition", y = "Count", title = "Medical Conditions among Deceased Patients over 70") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+#What is the mortality rate in the dataset between patients under 65 and those above 65? Are the
+#causes of death for these age groups significantly different from one another?
+  
+```{r}
+
+library(dplyr)
+
+# Calculate mortality rates for patients under 65 and above 65
+hospital_data$age_group <- ifelse(hospital_data$age < 65, "Under 65", "Above 65")
+
+# Check the structure of 'cause_of_death_column' to ensure it has the same length as other columns
+str(hospital_data$cause_of_death_column)
+
+
+
+# Perform chi-squared test for independence
+chi_square_test <- chisq.test(contingency_table)
+print(chi_square_test)
+
+ggplot(mortality_rates, aes(x = age_group, y = mortality_rate, fill = age_group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Age Group", y = "Mortality Rate", title = "Mortality Rates by Age Group") +
+  theme_minimal()
+
+
+```
+#Which ICU types are most prevalent in the dataset, and does the type of ICU affect the risk of hospital
+#death?
+  
+```{r}
+
+library(dplyr)
+
+# Calculate frequency of each ICU type
+icu_type_counts <- hospital_data %>%
+  group_by(icu_type) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+# Display ICU type counts
+print(icu_type_counts)
+
+death_rates_by_icu <- hospital_data %>%
+  group_by(icu_type) %>%
+  summarise(death_rate = mean(hospital_death == 1, na.rm = TRUE))
+
+# Display hospital death rates by ICU type
+print(death_rates_by_icu)
+
+library(ggplot2)
+
+ggplot(death_rates_by_icu, aes(x = icu_type, y = death_rate)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  labs(x = "ICU Type", y = "Hospital Death Rate", title = "Hospital Death Rates by ICU Type") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+#What differences exist between patients who survive and those who do not in terms of the distribution
+#of "BMI" (body mass index)? Does a person's BMI have any bearing on hospital mortality?
+
+```{r}
+
+survived_bmi <- hospital_data$hospital_death == 0  # Assuming 0 represents survived patients
+not_survived_bmi <- hospital_data$hospital_death == 1  # Assuming 1 represents not survived patients
+
+summary(hospital_data$BMI[survived_bmi])  # Summary stats for survived patients' BMI
+summary(hospital_data$BMI[not_survived_bmi])  # Summary stats for not survived patients' BMI
+
+boxplot(bmi ~ hospital_death, data = hospital_data, xlab = "Hospital Mortality", ylab = "BMI")
+
+t_test_result <- t.test(hospital_data$bmi[survived_bmi], hospital_data$BMI[not_survived_bmi])
+print(t_test_result)
+```
+#Are there significant differences in the distribution of vital signs (heart rate, glucose level) between different ethnic groups in the dataset?
+```{r}
+
+library(dplyr)
+library(ggplot2)
+
+# Subset the dataset with relevant columns
+subset_data <- hospital_data %>%
+  select(ethnicity, heart_rate_apache, glucose_apache)
+
+# Boxplot visualization of heart rate by ethnicity
+ggplot(subset_data, aes(x = ethnicity, y = heart_rate_apache)) +
+  geom_boxplot() +
+  labs(x = "Ethnicity", y = "Heart Rate") +
+  ggtitle("Distribution of Heart Rate by Ethnicity")
+
+# Boxplot visualization of glucose level by ethnicity
+ggplot(subset_data, aes(x = ethnicity, y = glucose_apache)) +
+  geom_boxplot() +
+  labs(x = "Ethnicity", y = "Glucose Level") +
+  ggtitle("Distribution of Glucose Level by Ethnicity")
+
+# Perform statistical tests (e.g., ANOVA or Kruskal-Wallis) to compare vital signs among ethnic groups
+# For heart rate:
+heart_rate_anova <- aov(heart_rate_apache ~ ethnicity, data = subset_data)
+print(summary(heart_rate_anova))  # ANOVA test
+
+# For glucose level:
+glucose_kruskal <- kruskal.test(glucose_apache ~ ethnicity, data = subset_data)
+print(glucose_kruskal)
+```
+#How does the prevalence of specific pre-existing conditions (diabetes, cirrhosis, leukemia) vary among different age groups, and is there a correlation between age and the occurrence of these conditions?
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidyr) 
+
+# Select relevant columns for analysis
+subset_data <- hospital_data %>%
+  select(age, diabetes_mellitus, cirrhosis, leukemia)
+
+# Calculate prevalence of each condition by age group
+age_groups <- cut(subset_data$age, breaks = c(0, 18, 40, 60, 80, 100), labels = c("0-18", "19-40", "41-60", "61-80", "81-100"))
+subset_data <- subset_data %>%
+  mutate(age_group = age_groups)
+
+# Calculate the proportion of each condition within each age group
+condition_prevalence <- subset_data %>%
+  group_by(age_group) %>%
+  summarize(
+    diabetes_prevalence = mean(diabetes_mellitus),
+    cirrhosis_prevalence = mean(cirrhosis),
+    leukemia_prevalence = mean(leukemia)
+  )
+
+# Plotting condition prevalence by age group
+condition_plot <- gather(condition_prevalence, condition, prevalence, -age_group) %>%
+  ggplot(aes(x = age_group, y = prevalence, fill = condition)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Age Group", y = "Prevalence", fill = "Condition") +
+  ggtitle("Prevalence of Conditions by Age Group") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(condition_plot)
+
+# Correlation analysis between age and conditions
+correlation_matrix <- cor(subset_data[, c("age", "diabetes_mellitus", "cirrhosis", "leukemia")])
+print(correlation_matrix)
+```
+#Can we analyze the trends in hospital mortality rates over time? Is there a noticeable change or improvement in mortality rates in recent years?
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+
+# Assuming there's a timestamp column indicating admission or discharge time
+# Convert timestamp to a Date format if needed
+hospital_data$timestamp <- seq(as.Date("2020-01-01"), by = "1 day", length.out = nrow(hospital_data))  # Replace 'timestamp' with the actual column name
+
+# Calculate hospital mortality rate per year
+mortality_rate <- hospital_data %>%
+  mutate(year = lubridate::year(timestamp)) %>%  # Extract year from the timestamp
+  group_by(year) %>%
+  summarize(
+    mortality_rate = mean(hospital_death)  # Calculate mean hospital mortality rate per year
+  )
+
+# Plotting the trend of hospital mortality rates over time
+mortality_plot <- ggplot(mortality_rate, aes(x = year, y = mortality_rate)) +
+  geom_line() +
+  labs(x = "Year", y = "Mortality Rate", title = "Trends in Hospital Mortality Rates Over Time")
+
+print(mortality_plot)
+```
+#Are there specific combinations of pre-existing conditions or a particular set of vital signs that indicate a higher likelihood of hospital mortality?
+
+```{r}
+
+library(dplyr)
+
+library(caret)
+
+colnames(hospital_data)
+head(hospital_data)
+# Select relevant columns for analysis (pre-existing conditions and vital signs)
+subset_data <- hospital_data %>%
+  select(age, gender, diabetes_mellitus, cirrhosis, heart_rate_apache, glucose_apache, hospital_death) # Add more vital signs or conditions as needed
+
+# Handle missing values if any
+subset_data <- na.omit(subset_data)
+
+# Split data into training and testing sets
+set.seed(123)
+trainIndex <- createDataPartition(subset_data$hospital_death, p = 0.7, list = FALSE)
+train_data <- subset_data[trainIndex, ]
+test_data <- subset_data[-trainIndex, ]
+
+# Fit logistic regression model
+logistic_model <- glm(hospital_death ~ ., data = train_data, family = "binomial")
+
+# Summary of the model
+summary(logistic_model)
+
+# Predict hospital mortality on test data
+predicted <- predict(logistic_model, newdata = test_data, type = "response")
+
+# Evaluate model performance (e.g., using AUC-ROC)
+library(pROC)
+auc_score <- roc(test_data$hospital_death, predicted)
+print(auc_score)
+```
